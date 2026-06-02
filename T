@@ -1,0 +1,224 @@
+-- Buat ScreenGui Utama
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local TitleLabel = Instance.new("TextLabel")
+local ToggleButton = Instance.new("TextButton")
+local StatusLabel = Instance.new("TextLabel")
+local CloseButton = Instance.new("TextButton")
+local OpenButton = Instance.new("TextButton")
+
+-- Cari atau buat CoreGui agar GUI tidak hilang saat karakter mati
+local CoreGui = game:GetService("CoreGui")
+ScreenGui.Name = "AntiAFKMobileGUI"
+ScreenGui.Parent = CoreGui
+ScreenGui.ResetOnSpawn = false
+
+-- Variabel Status Sistem
+local AntiAFK_Aktif = false
+local INTERVAL_UTAMA = 900 -- 15 menit (Aman dari batas 20 menit Roblox)
+local KoneksiIdle = nil
+
+-- === DESAIN VISUAL MENU (UI) ===
+-- 1. Tombol Buka (Hanya muncul saat menu ditutup)
+OpenButton.Name = "OpenButton"
+OpenButton.Parent = ScreenGui
+OpenButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+OpenButton.Position = UDim2.new(0, 10, 0, 10)
+OpenButton.Size = UDim2.new(0, 80, 0, 35)
+OpenButton.Font = Enum.Font.SourceSansBold
+OpenButton.Text = "Buka AFK"
+OpenButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+OpenButton.TextSize = 14
+OpenButton.Visible = false -- Sembunyikan dulu saat awal
+
+-- Tambah sudut melengkung pada tombol buka
+local OpenCorner = Instance.new("UICorner")
+OpenCorner.CornerRadius = UDim.new(0, 8)
+OpenCorner.Parent = OpenButton
+
+-- 2. Panel Utama Menu
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.Position = UDim2.new(0.5, -100, 0.4, -60)
+MainFrame.Size = UDim2.new(0, 200, 0, 130)
+MainFrame.Active = true
+MainFrame.Draggable = true -- Bisa digeser-geser pakai jari di layar HP
+
+local FrameCorner = Instance.new("UICorner")
+FrameCorner.CornerRadius = UDim.new(0, 10)
+FrameCorner.Parent = MainFrame
+
+-- 3. Judul Menu
+TitleLabel.Name = "TitleLabel"
+TitleLabel.Parent = MainFrame
+TitleLabel.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+TitleLabel.Size = UDim2.new(1, 0, 0, 30)
+TitleLabel.Font = Enum.Font.SourceSansBold
+TitleLabel.Text = "  ANTI-AFK MOBILE"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextSize = 14
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 10)
+TitleCorner.Parent = TitleLabel
+
+-- 4. Tombol Tutup (Minimize)
+CloseButton.Name = "CloseButton"
+CloseButton.Parent = MainFrame
+CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseButton.Position = UDim2.new(1, -25, 0, 5)
+CloseButton.Size = UDim2.new(0, 20, 0, 20)
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextSize = 14
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 5)
+CloseCorner.Parent = CloseButton
+
+-- 5. Tombol Aktifkan / Matikan Fitur
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Parent = MainFrame
+ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50) -- Default Merah (Mati)
+ToggleButton.Position = UDim2.new(0.05, 0, 0.35, 0)
+ToggleButton.Size = UDim2.new(0.9, 0, 0, 35)
+ToggleButton.Font = Enum.Font.SourceSansBold
+ToggleButton.Text = "STATUS: MATI"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextSize = 16
+
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(0, 8)
+ToggleCorner.Parent = ToggleButton
+
+-- 6. Label Status Aktivitas
+StatusLabel.Name = "StatusLabel"
+StatusLabel.Parent = MainFrame
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Position = UDim2.new(0, 0, 0.7, 0)
+StatusLabel.Size = UDim2.new(1, 0, 0, 25)
+StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.Text = "Menunggu diaktifkan..."
+StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+StatusLabel.TextSize = 12
+
+-- === FUNGSI UTAMA GAMEPLAY (LOGIKA) ===
+
+local Players = game:GetService("Players")
+local VirtualUser = game:GetService("VirtualUser")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+local Kamera = workspace.CurrentCamera
+
+-- Fungsi gerak karakter acak
+local function gerakAcak()
+	local karakter = LocalPlayer.Character
+	if not karakter then return end
+	local humanoid = karakter:FindFirstChildOfClass("Humanoid")
+	if humanoid and humanoid.Health > 0 then
+		StatusLabel.Text = "Aksi: Karakter Berjalan..."
+		local arahX = math.random(-1, 1)
+		local arahZ = math.random(-1, 1)
+		local arah = Vector3.new(arahX, 0, arahZ)
+		if arah.Magnitude == 0 then arah = Vector3.new(0,0,1) end
+		
+		humanoid:Move(arah, true)
+		task.wait(math.random(5, 12) / 10)
+		humanoid:Move(Vector3.new(0,0,0), true)
+	end
+end
+
+-- Fungsi putar kamera acak
+local function kameraAcak()
+	StatusLabel.Text = "Aksi: Memutar Kamera..."
+	local x, y, z = Kamera.CFrame:ToOrientation()
+	local rotasiBaruX = y + math.rad(math.random(-50, 50))
+	local rotasiBaruY = x + math.rad(math.random(-10, 10))
+	rotasiBaruY = math.clamp(rotasiBaruY, math.rad(-45), math.rad(45))
+	
+	local targetCFrame = CFrame.new(Kamera.CFrame.Position) * CFrame.fromOrientation(rotasiBaruY, rotasiBaruX, 0)
+	local infoTween = TweenInfo.new(math.random(10, 18) / 10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local animasi = TweenService:Create(Kamera, infoTween, {CFrame = targetCFrame})
+	animasi:Play()
+	animasi.Completed:Wait()
+end
+
+-- Fungsi lompat acak
+local function lompatAcak()
+	local karakter = LocalPlayer.Character
+	if not karakter then return end
+	local humanoid = karakter:FindFirstChildOfClass("Humanoid")
+	if humanoid and math.random(1, 2) == 1 then
+		StatusLabel.Text = "Aksi: Karakter Melompat!"
+		humanoid.Jump = true
+	end
+end
+
+-- Loop utama yang berjalan di latar belakang
+task.spawn(function()
+	while true do
+		task.wait(1)
+		if AntiAFK_Aktif then
+			local variasiWaktu = math.random(-15, 15)
+			local totalTunggu = INTERVAL_UTAMA + variasiWaktu
+			
+			for i = totalTunggu, 1, -1 do
+				if not AntiAFK_Aktif then break end
+				local m = math.floor(i / 60)
+				local s = i % 60
+				StatusLabel.Text = string.format("Jeda aksi: %02d:%02d", m, s)
+				task.wait(1)
+			end
+			
+			if AntiAFK_Aktif then
+				gerakAcak()
+				task.wait(0.5)
+				kameraAcak()
+				task.wait(0.5)
+				lompatAcak()
+			end
+		end
+	end
+end)
+
+-- === SISTEM TOMBOL & ANTARMUKA (INTERACTIVE) ===
+
+-- Tombol buka menu
+OpenButton.MouseButton1Click:Connect(function()
+	MainFrame.Visible = true
+	OpenButton.Visible = false
+end)
+
+-- Tombol tutup (minimize) menu
+CloseButton.MouseButton1Click:Connect(function()
+	MainFrame.Visible = false
+	OpenButton.Visible = true
+end)
+
+-- Tombol ON/OFF Anti-AFK
+ToggleButton.MouseButton1Click:Connect(function()
+	AntiAFK_Aktif = not AntiAFK_Aktif
+	if AntiAFK_Aktif then
+		ToggleButton.Text = "STATUS: AKTIF"
+		ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 180, 50) -- Berubah Hijau
+		StatusLabel.Text = "Sistem dimulai..."
+		
+		-- Gagalkan tendangan AFK internal Roblox
+		KoneksiIdle = LocalPlayer.Idled:Connect(function()
+			VirtualUser:CaptureController()
+			VirtualUser:ClickButton2(Vector2.new(0,0))
+		end)
+	else
+		ToggleButton.Text = "STATUS: MATI"
+		ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50) -- Berubah Merah
+		StatusLabel.Text = "Menunggu diaktifkan..."
+		if KoneksiIdle then
+			KoneksiIdle:Disconnect()
+			KoneksiIdle = nil
+		end
+	end
+end)
